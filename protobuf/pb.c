@@ -19,16 +19,35 @@
  *
  * =====================================================================================
  */
+
 #include <stdint.h>
 #include <string.h>
 
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
+
+#if _WIN32
+
+/* winsock2 has the endian info */
+#include <winsock2.h>
+#if LITTLEENDIAN
+#define IS_LITTLE_ENDIAN
+#endif
+
+#else
+/* not windows */
+
 #include <endian.h>
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #define IS_LITTLE_ENDIAN
+#endif
+
+#endif
+
+#ifndef PB_API
+#define PB_API
 #endif
 
 #define IOSTRING_META "protobuf.IOString"
@@ -275,19 +294,36 @@ static int zig_zag_decode32(lua_State *L)
     return 1;
 }
 
+static uint64_t umaxint = (((uint64_t)1) << (8*sizeof(lua_Integer))) - 1;
+static int64_t  maxint  = (((int64_t)1) << (8*sizeof(lua_Integer)-1)) - 1;
+
 static int zig_zag_encode64(lua_State *L)
 {
     int64_t n = (int64_t)luaL_checknumber(L, 1);
     uint64_t value = (n << 1) ^ (n >> 63);
-    lua_pushinteger(L, value);
-    return 1;
+
+    if (sizeof(lua_Integer) < 8 && value > umaxint) {
+      luaL_error(L, "integer (%llu) out of range", value);
+      return 0;
+    } else {
+      lua_pushinteger(L, (lua_Integer) value);
+      return 1;
+    }
 }
 
 static int zig_zag_decode64(lua_State *L)
 {
     uint64_t n = (uint64_t)luaL_checknumber(L, 1);
     int64_t value = (n >> 1) ^ - (int64_t)(n & 1);
-    lua_pushinteger(L, value);
+
+    if (sizeof(lua_Integer) < 8 &&
+	(value > maxint || value < (-maxint-1))) {
+      luaL_error(L, "integer (%ll) out of range", value);
+      return 0;
+    } else {
+      lua_pushinteger(L, (lua_Integer) value);
+      return 1;
+    }
     return 1;
 }
 
@@ -334,9 +370,9 @@ static int struct_unpack(lua_State *L)
     size_t len;
     const uint8_t* buffer = (uint8_t*)luaL_checklstring(L, 2, &len);
     size_t pos = luaL_checkinteger(L, 3);
+    uint8_t out[8];
 
     buffer += pos;
-    uint8_t out[8];
     switch(format){
         case 'i':
             {
@@ -457,7 +493,7 @@ static const struct luaL_reg _c_iostring_m [] = {
     {NULL, NULL}
 };
 
-int luaopen_pb (lua_State *L)
+PB_API int luaopen_pb (lua_State *L)
 {
     luaL_newmetatable(L, IOSTRING_META);
     lua_pushvalue(L, -1);
