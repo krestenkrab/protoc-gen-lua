@@ -40,6 +40,10 @@
 
 #include <endian.h>
 
+#ifndef UNALIGNED
+#define UNALIGNED
+#endif
+
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #define IS_LITTLE_ENDIAN
 #endif
