@@ -40,9 +40,64 @@
 
 #include <endian.h>
 
-#ifndef UNALIGNED
-#define UNALIGNED
+#ifdef _WIN32_WCE
+#define PACKED_DECL
+#pragma pack(1)
+#else
+#define PACKED_DECL __attribute__((packed))
 #endif
+struct __una_u64 { uint64_t x PACKED_DECL; };
+struct __una_u32 { uint32_t x PACKED_DECL; };
+struct __una_u16 { uint16_t x PACKED_DECL; };
+struct __una_64  { int64_t  x PACKED_DECL; };
+struct __una_32  { int32_t  x PACKED_DECL; };
+struct __una_16  { int16_t  x PACKED_DECL; };
+struct __una_f   { float    x PACKED_DECL; };
+struct __una_d   { double   x PACKED_DECL; };
+#ifdef _WIN32_WCE
+#pragma pack
+#endif
+
+/*
+ * Elemental unaligned loads
+ */
+
+static inline uint64_t __uld64(const void * r11)
+{
+	const struct __una_u64 *ptr = (const struct __una_u64 *) r11;
+	return ptr->x;
+}
+
+static inline int64_t __ld64(const void * r11)
+{
+	const struct __una_64 *ptr = (const struct __una_64 *) r11;
+	return ptr->x;
+}
+
+static inline uint32_t __uld32(const void * r11)
+{
+	const struct __una_u32 *ptr = (const struct __una_u32 *) r11;
+	return ptr->x;
+}
+
+static inline int32_t __ld32(const void * r11)
+{
+	const struct __una_32 *ptr = (const struct __una_32 *) r11;
+	return ptr->x;
+}
+
+static inline float __ldf(const void * r11)
+{
+	const struct __una_f *ptr = (const struct __una_f *) r11;
+	return ptr->x;
+}
+
+static inline double __ldd(const void * r11)
+{
+	const struct __una_d *ptr = (const struct __una_d *) r11;
+	return ptr->x;
+}
+
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #define IS_LITTLE_ENDIAN
@@ -142,7 +197,7 @@ static int signed_varint_encoder(lua_State *L)
 
     if (value < 0)
     {
-        pack_varint(&b, *(uint64_t UNALIGNED*)&value);
+        pack_varint(&b, __uld64(&value));
     }else{
         pack_varint(&b, value);
     }
@@ -157,7 +212,7 @@ static int pack_fixed32(lua_State *L, uint8_t* value){
 #ifdef IS_LITTLE_ENDIAN
     lua_pushlstring(L, (char*)value, 4);
 #else
-    uint32_t v = htole32(*(uint32_t UNALIGNED*)value);
+    uint32_t v = htole32(__uld32(value));
     lua_pushlstring(L, (char*)&v, 4);
 #endif
     return 0;
@@ -167,7 +222,7 @@ static int pack_fixed64(lua_State *L, uint8_t* value){
 #ifdef IS_LITTLE_ENDIAN
     lua_pushlstring(L, (char*)value, 8);
 #else
-    uint64_t v = htole64(*(uint64_t UNALIGNED*)value);
+    uint64_t v = htole64(__uld64(value));
     lua_pushlstring(L, (char*)&v, 8);
 #endif
     return 0;
@@ -380,32 +435,32 @@ static int struct_unpack(lua_State *L)
     switch(format){
         case 'i':
             {
-                lua_pushinteger(L, *(int32_t UNALIGNED*)unpack_fixed32(buffer, out));
+                lua_pushinteger(L, __ld32(unpack_fixed32(buffer, out)));
                 break;
             }
         case 'q':
             {
-                lua_pushnumber(L, (lua_Number)*(int64_t UNALIGNED*)unpack_fixed64(buffer, out));
+                lua_pushnumber(L, (lua_Number)__ld64(unpack_fixed64(buffer, out)));
                 break;
             }
         case 'f':
             {
-                lua_pushnumber(L, (lua_Number)*(float UNALIGNED*)unpack_fixed32(buffer, out));
+                lua_pushnumber(L, (lua_Number)__ldf(unpack_fixed32(buffer, out)));
                 break;
             }
         case 'd':
             {
-                lua_pushnumber(L, (lua_Number)*(double UNALIGNED*)unpack_fixed64(buffer, out));
+                lua_pushnumber(L, (lua_Number)__ldd(unpack_fixed64(buffer, out)));
                 break;
             }
         case 'I':
             {
-                lua_pushnumber(L, (lua_Number)*(uint32_t UNALIGNED*)unpack_fixed32(buffer, out));
+                lua_pushnumber(L, (lua_Number)__uld32(unpack_fixed32(buffer, out)));
                 break;
             }
         case 'Q':
             {
-                lua_pushnumber(L, (lua_Number)*(uint64_t UNALIGNED*)unpack_fixed64(buffer, out));
+                lua_pushnumber(L, (lua_Number)__uld64(unpack_fixed64(buffer, out)));
                 break;
             }
         default:
